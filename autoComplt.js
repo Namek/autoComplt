@@ -168,7 +168,7 @@ var autoComplt = (function () {
 		e.target = e.target || e.srcElement;
 		e.stopBubble = function () {
 			this.cancelBubble = true;
-			if (this.stopPropoagation) { this.stopPropoagation(); }
+			if (this.stopPropagation) { this.stopPropagation(); }
 		}
 		e.stopDefault = function () {
 			if (this.preventDefault) { this.preventDefault(); }
@@ -277,22 +277,30 @@ var autoComplt = (function () {
 				@ NG: null
 		*/
 		buildHint : function (hint, styles) {
-			if (typeof hint == "string" && hint) {
-				var hint = this.buildElem('<li class="' + _CONST.autoCompltHintClass + '">' + hint + '</li>');
-
-				hint.style.height = hint.style.lineHeight = styles.autoCompltHint.height; // line-height shall always be equal to the height
-				hint.style.padding = styles.autoCompltHint.padding;
-				hint.style.margin = styles.autoCompltHint.margin;
-				hint.style.overflow = styles.autoCompltHint.overflow;
-				hint.style.listStyleType = styles.autoCompltHint.listStyleType;
-				hint.style.color = styles.autoCompltHint.color;
-				hint.style.backgroundColor = styles.autoCompltHint.backgroundColor;
-				hint.style.cursor = styles.autoCompltHint.cursor;
-				hint.style.fontSize = styles.autoCompltHint.fontSize;
-
-				return hint;
+			if (!hint) {
+				return false;
 			}
-			return null;
+
+			var args = '';
+			if (typeof hint === "string") {
+				hint = {text: hint};
+			}
+			else {
+				args = ' data-url="' + hint.url + '" onclick="window.location.href=\'' + hint.url + '\'"';
+			}
+			var hint = this.buildElem('<li class="' + _CONST.autoCompltHintClass + '"' + args + '>' + hint.text + '</li>');
+
+			hint.style.height = hint.style.lineHeight = styles.autoCompltHint.height; // line-height shall always be equal to the height
+			hint.style.padding = styles.autoCompltHint.padding;
+			hint.style.margin = styles.autoCompltHint.margin;
+			hint.style.overflow = styles.autoCompltHint.overflow;
+			hint.style.listStyleType = styles.autoCompltHint.listStyleType;
+			hint.style.color = styles.autoCompltHint.color;
+			hint.style.backgroundColor = styles.autoCompltHint.backgroundColor;
+			hint.style.cursor = styles.autoCompltHint.cursor;
+			hint.style.fontSize = styles.autoCompltHint.fontSize;
+
+			return hint;
 		},				
 		/*	Arg:
 				<OBJ> styles = the obk holding the styles to set. Refer to _CONST.defaultStyles.autoCompltList for the required styles
@@ -390,8 +398,9 @@ var autoComplt = (function () {
 					e = _normalizeEvt(e);
 					if (that.isHint(e.target)) {
 						that.select(e.target);
-						that.assocInput.value = that.getSelected().innerHTML;
-						that.assocInput.autoComplt.close();
+						var selectedOptionEl = that.getSelected();
+						// that.assocInput.value = selectedOptionEl.innerHTML;
+						// that.assocInput.autoComplt.close();
 					}
 				});
 				
@@ -640,6 +649,7 @@ var autoComplt = (function () {
 					input_autoComplt_enabled = true,
 					input_autoComplt_currentTarget = "",
 					input_autoComplt_hintsFetcher = null,
+					input_autoComplt_onEnterEventHandler = null,
 					input_autoComplt_list = new _AutoCompltList(input),
 					/*
 					*/
@@ -681,6 +691,17 @@ var autoComplt = (function () {
 					},
 					/*
 					*/
+					input_autoComplt_fireOnEnter = function() {
+						if (typeof input_autoComplt_onEnterEventHandler == "function") {
+							return input_autoComplt_onEnterEventHandler(input_autoComplt_list.getSelected());
+						}
+						else {
+							input_autoComplt_compltInput();
+							return true;		
+						}
+					},
+					/*
+					*/
 					input_autoComplt_compltInput= function () {
 						if (input_autoComplt_enabled) {
 							var hint = input_autoComplt_list.getSelected();
@@ -709,90 +730,108 @@ var autoComplt = (function () {
 					*/
 					input_autoComplt_keyEvtHandle = function (e) {
 						e = _normalizeEvt(e);
-						if (input_autoComplt_enabled) {
-							
-							if (e.type == "keydown"
-								&& input_autoComplt_list.isOpen()
-								&& (e.keyCode === _CONST.keyCode.up || e.keyCode === _CONST.keyCode.down)
-							) {
-							// At the case that the hint list is open ans user is walkin thru the hints.
-							// Let's try to autocomplete the input by the selected input.
-								
-								var hint = input_autoComplt_list.getSelected();
-								
-								if (e.keyCode === _CONST.keyCode.up) {
-								
-									if (!hint) {
-									// If none is selected, then select the last hint
-										input_autoComplt_list.select(-1);												
-									} else if (hint.previousSibling) {
-									// If some hint is selected and the previous hint exists, then select the previous hint
-										input_autoComplt_list.select(hint.previousSibling);
-									} else {
-									// If some hint is selected but the previous hint doesn't exists, then deselect all
-										input_autoComplt_list.deselect();
-									}
-									
-								} else if (e.keyCode === _CONST.keyCode.down) {
-								
-									if (!hint) {
-									// If none is selected, then select the first hint
-										input_autoComplt_list.select(0);												
-									} else if (hint.nextSibling) {
-									// If some hint is selected and the next hint exists, then select the next hint
-										input_autoComplt_list.select(hint.nextSibling);
-									} else {
-									// If some hint is selected but the next hint doesn't exists, then deselect all
-										input_autoComplt_list.deselect();
-									}
-									
-								}
-								
-								input_autoComplt_list.autoScroll();
-								
-								input_autoComplt_compltInput.call(input);
 
-							}
-							else if (e.type == "keyup") {
-								
-								var startFetching = false;
-								
-								switch (e.keyCode) {
-									case _CONST.keyCode.up: case _CONST.keyCode.down:
-										if (input_autoComplt_list.isOpen()) {
-											// We have handled this 2 key codes onkeydown, so must do nothing here
-										} else {
-											startFetching = true;
-										}
-									break;
-									
-									case _CONST.keyCode.esc:
-										if (input_autoComplt_list.isOpen()) {
-											// When pressing the ESC key, let's resume back to the original user input
-											input.value = input_autoComplt_currentTarget;
-											input.autoComplt.close();
-										}										
-									break;
-									
-									case _CONST.keyCode.enter:
-										if (input_autoComplt_list.isOpen()) {
-											// When pressing the enter key, let's try autocomplete
-											input_autoComplt_compltInput.call(input);
-											input.autoComplt.close();
-										}
-									break;
-									
-									default:
-										startFetching = true;
-									break;
+						if (!input_autoComplt_enabled) {
+							return;
+						}
+							
+						if (e.type == "keydown"
+							&& input_autoComplt_list.isOpen()
+							&& (e.keyCode === _CONST.keyCode.up || e.keyCode === _CONST.keyCode.down)
+						) {
+						// At the case that the hint list is open ans user is walkin thru the hints.
+						// Let's try to autocomplete the input by the selected input.
+							
+							var hint = input_autoComplt_list.getSelected();
+							
+							if (e.keyCode === _CONST.keyCode.up) {
+							
+								if (!hint) {
+								// If none is selected, then select the last hint
+									input_autoComplt_list.select(-1);												
+								} else if (hint.previousSibling) {
+								// If some hint is selected and the previous hint exists, then select the previous hint
+									input_autoComplt_list.select(hint.previousSibling);
+								} else {
+								// If some hint is selected but the previous hint doesn't exists, then deselect all
+									input_autoComplt_list.deselect();
 								}
 								
-								if (startFetching) {
-									if (input.value.length > 0) {
-										input_autoComplt_startFetcher.call(input);
+							} else if (e.keyCode === _CONST.keyCode.down) {
+							
+								if (!hint) {
+								// If none is selected, then select the first hint
+									input_autoComplt_list.select(0);												
+								} else if (hint.nextSibling) {
+								// If some hint is selected and the next hint exists, then select the next hint
+									input_autoComplt_list.select(hint.nextSibling);
+								} else {
+								// If some hint is selected but the next hint doesn't exists, then deselect all
+									input_autoComplt_list.deselect();
+								}
+								
+							}
+							
+							input_autoComplt_list.autoScroll();
+							
+							// TODO should be configurable
+							//input_autoComplt_compltInput.call(input);
+
+						}
+						else if (e.type == "keydown"
+							&& input_autoComplt_list.isOpen()
+							&& e.keyCode === _CONST.keyCode.enter) {
+							if (input_autoComplt_list.getSelected()) {
+								e.stopDefault();
+							}
+						}
+						else if (e.type == "keyup") {
+							
+							var startFetching = false;
+							
+							switch (e.keyCode) {
+								case _CONST.keyCode.up: case _CONST.keyCode.down:
+									if (input_autoComplt_list.isOpen()) {
+										// We have handled this 2 key codes onkeydown, so must do nothing here
 									} else {
+										startFetching = true;
+									}
+								break;
+								
+								case _CONST.keyCode.esc:
+									if (input_autoComplt_list.isOpen()) {
+										// When pressing the ESC key, let's resume back to the original user input
+										input.value = input_autoComplt_currentTarget;
+										input.autoComplt.close();
+									}										
+								break;
+								
+								case _CONST.keyCode.enter:
+									if (input_autoComplt_list.isOpen()) {
+										// When pressing the enter key, let's try autocomplete
+
+										// TODO should be configurable
+										if (!input_autoComplt_fireOnEnter(input)) {
+											e.stopBubble();
+											e.stopDefault();
+										}
+										// input_autoComplt_compltInput.call(input);
+										
+
 										input.autoComplt.close();
 									}
+								break;
+								
+								default:
+									startFetching = true;
+								break;
+							}
+							
+							if (startFetching) {
+								if (input.value.length > 0) {
+									input_autoComplt_startFetcher.call(input);
+								} else {
+									input.autoComplt.close();
 								}
 							}
 						}
@@ -801,6 +840,14 @@ var autoComplt = (function () {
 				input.autoComplt.setHintsFetcher = function (hintsFetcher) {
 					if (typeof hintsFetcher == "function") {
 						input_autoComplt_hintsFetcher = hintsFetcher;
+						return true;
+					}
+					return false;
+				}
+
+				input.autoComplt.setOnEnterEventHandler = function (eventHandler) {
+					if (typeof eventHandler == "function") {
+						input_autoComplt_onEnterEventHandler = eventHandler;
 						return true;
 					}
 					return false;
@@ -902,6 +949,7 @@ var autoComplt = (function () {
 				if (params instanceof Object) {
 					input.autoComplt.config(params);
 					input.autoComplt.setHintsFetcher(params.hintsFetcher);
+					input.autoComplt.setOnEnterEventHandler(params.onEnterEventHandler);
 				}
 				
 				return input;
